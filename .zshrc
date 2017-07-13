@@ -1,6 +1,7 @@
+export PATH="$HOME/.rbenv/bin:$PATH"
+export PATH=/usr/local/bin:$PATH
 eval "$(rbenv init -)"
 export PATH="/usr/local/share/npm/bin:$PATH"
-export PATH="$HOME/.rbenv/bin:$PATH"
 export PATH=$HOME/.nodebrew/current/bin:$PATH
 
 # alias
