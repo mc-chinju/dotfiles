@@ -30,6 +30,7 @@ alias cod="git checkout development"
 alias com="git checkout master"
 alias d="git diff"
 alias ds="git diff --staged"
+alias f="git fetch --prune"
 alias push="git push origin HEAD"
 alias fpush='git push -f origin HEAD'
 alias pull="git pull origin HEAD"
