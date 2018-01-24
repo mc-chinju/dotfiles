@@ -9,6 +9,7 @@ alias be='bundle exec'
 alias bi='bundle install --path vendor/bundle --jobs=4'
 alias ls='ls -G'
 alias rs='be rails s -b 0.0.0.0'
+alias :q='exit'
 
 # alias:cd
 alias cdd="cd $HOME/Desktop"
