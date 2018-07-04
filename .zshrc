@@ -3,6 +3,8 @@ export PATH=/usr/local/bin:$PATH
 eval "$(rbenv init -)"
 export PATH="/usr/local/share/npm/bin:$PATH"
 export PATH=$HOME/.nodebrew/current/bin:$PATH
+export PATH="$HOME/.pyenv/bin:$PATH"
+eval "$(pyenv init -)"
 
 # alias
 alias be='bundle exec'
