@@ -1,6 +1,6 @@
 ## How to use?
 
-First of all, execute to git clone at followings path!
+First of all, execute "git clone" command as folloings!
 
 ```
 $ mkdir ~/git
