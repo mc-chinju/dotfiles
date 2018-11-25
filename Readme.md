@@ -11,7 +11,7 @@ $ git clone https://github.com/mc-chinju/dotfiles
 Next, execute shell script!
 
 ```
-$ ~/git/dotfiles/dotfiles_link.sh
+$ ~/git/dotfiles/setup.sh
 ```
 
 That's all!
