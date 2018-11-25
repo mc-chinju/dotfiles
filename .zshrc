@@ -1,6 +1,11 @@
-export PATH="$HOME/.rbenv/bin:$PATH"
+# Homebrew
 export PATH=/usr/local/bin:$PATH
+
+# Homebrew rbenv
+export PATH="$HOME/.rbenv/bin:$PATH"
 eval "$(rbenv init -)"
+
+# Homebrew node
 export PATH="/usr/local/share/npm/bin:$PATH"
 export PATH=$HOME/.nodebrew/current/bin:$PATH
 
