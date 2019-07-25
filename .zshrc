@@ -1,3 +1,6 @@
+# GLOBAL
+export LSCOLORS=Dxfxcxdxbxegedabagacad
+
 # Homebrew
 export PATH=/usr/local/bin:$PATH
 
