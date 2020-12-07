@@ -1,6 +1,9 @@
 # GLOBAL
 export LSCOLORS=Dxfxcxdxbxegedabagacad
 
+# Terminal name
+export PS1="%n %~ \$ "
+
 # Homebrew
 export PATH=/usr/local/bin:$PATH
 
