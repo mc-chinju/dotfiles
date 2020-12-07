@@ -5,7 +5,6 @@ export LSCOLORS=Dxfxcxdxbxegedabagacad
 export PATH=/usr/local/bin:$PATH
 
 # Homebrew rbenv
-export PATH="$HOME/.rbenv/bin:$PATH"
 eval "$(rbenv init -)"
 
 # Homebrew node
