@@ -1,13 +1,16 @@
 # GLOBAL
 export LSCOLORS=Dxfxcxdxbxegedabagacad
 
+# Terminal name
+export PS1="%n %~ \$ "
+
 # Homebrew
 export PATH=/usr/local/bin:$PATH
 
-# Homebrew rbenv
+# rbenv
 eval "$(rbenv init -)"
 
-# Homebrew node
+# nodenv
 export PATH="$HOME/.nodenv/bin:$PATH"
 eval "$(nodenv init -)"
 
