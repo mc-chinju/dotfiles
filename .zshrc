@@ -8,8 +8,8 @@ export PATH=/usr/local/bin:$PATH
 eval "$(rbenv init -)"
 
 # Homebrew node
-export PATH="/usr/local/share/npm/bin:$PATH"
-export PATH=$HOME/.nodebrew/current/bin:$PATH
+export PATH="$HOME/.nodenv/bin:$PATH"
+eval "$(nodenv init -)"
 
 # alias
 alias be='bundle exec'
