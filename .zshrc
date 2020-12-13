@@ -11,7 +11,6 @@ export PATH=/usr/local/bin:$PATH
 eval "$(rbenv init -)"
 
 # nodenv
-export PATH="$HOME/.nodenv/bin:$PATH"
 eval "$(nodenv init -)"
 
 # alias
