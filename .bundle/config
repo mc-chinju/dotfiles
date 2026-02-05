@@ -2,4 +2,5 @@
 BUNDLE_PATH: "vendor/bundle"
 BUNDLE_JOBS: "4"
 BUNDLE_BUILD__MYSQL2: "--with-ldflags=-L/usr/local/opt/openssl/lib"
-BUNDLE_BUILD__PUMA: "--with-cflags=-Wno-error=implicit-function-declaration"
+BUNDLE_LOCAL: "jobs 4"
+BUNDLE_BUILD__PUMA: "CC=clang -fdeclspec"
