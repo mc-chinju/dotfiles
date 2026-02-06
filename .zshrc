@@ -63,10 +63,84 @@ alias show="git show"
 alias st="git stash"
 
 wt() {
-  local dir
-  dir=$(git worktree list | awk '{print $1}' | fzf) || return
-  cd "$dir"
-  cursor -a .
+  emulate -L zsh
+  setopt localoptions interactivecomments
+
+  # guard
+  command -v git >/dev/null 2>&1 || { echo "git not found"; return 1; }
+  command -v fzf >/dev/null 2>&1 || { echo "fzf not found"; return 1; }
+  git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "Not a git repo"; return 1; }
+
+  local orig_dir pick wt_branch wt_dir
+  orig_dir="$PWD"
+
+  # open current dir in new window (Cursor preferred; fallback VS Code)
+  _wt_open_here() {
+    if command -v cursor >/dev/null 2>&1; then
+      cursor -n .
+    elif command -v code >/dev/null 2>&1; then
+      code -n .
+    fi
+  }
+
+  # Build list (TAB-separated): branch<TAB>dir
+  pick="$(
+    {
+      # first line: create
+      printf "(+)\t[+] create new worktree\n"
+
+      # existing worktrees
+      git worktree list --porcelain | awk '
+        BEGIN{dir=""; branch=""}
+        $1=="worktree"{dir=$2}
+        $1=="branch"{branch=$2}
+        $1==""{
+          b=branch
+          sub(/^refs\/heads\//,"",b)
+          if (b=="") b="(detached)"
+          if (dir!="") printf "%s\t%s\n", b, dir
+          dir=""; branch=""
+        }
+      '
+    } | fzf --prompt="wt> " --with-nth=1,2 --delimiter="$(printf '\t')" \
+           --header="ENTER: open (cd temporarily + new window) / Select (+) to create"
+  )" || return
+
+  wt_branch="${pick%%$'\t'*}"
+  wt_dir="${pick#*$'\t'}"
+
+  # Create new
+  if [ "$wt_branch" = "(+)" ]; then
+    local br base_ref wt_root dir_safe new_dir
+
+    printf "New branch name (e.g. feat/login-fix): "
+    IFS= read -r br
+    [ -z "$br" ] && { echo "Canceled"; return 0; }
+
+    # base = current branch (or current commit if detached)
+    base_ref="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || git rev-parse --short HEAD)"
+
+    wt_root="../wt"
+    mkdir -p "$wt_root" 2>/dev/null || true
+
+    dir_safe="${br//\//__}"
+    new_dir="$wt_root/$dir_safe"
+
+    if [ ! -d "$new_dir" ]; then
+      git worktree add -b "$br" "$new_dir" "$base_ref" || { cd "$orig_dir"; return 1; }
+    fi
+
+    cd "$new_dir" || { cd "$orig_dir"; return 1; }
+    _wt_open_here
+    cd "$orig_dir"
+    return 0
+  fi
+
+  # Open existing
+  [ -z "$wt_dir" ] && return 0
+  cd "$wt_dir" || { cd "$orig_dir"; return 1; }
+  _wt_open_here
+  cd "$orig_dir"
 }
 
 wtrm() {
