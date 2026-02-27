@@ -111,14 +111,20 @@ wt() {
 
   # Create new
   if [ "$wt_branch" = "(+)" ]; then
-    local br base_ref wt_root dir_safe new_dir
+    local br base_ref wt_root dir_safe new_dir current_branch
 
     printf "New branch name (e.g. feat/login-fix): "
     IFS= read -r br
     [ -z "$br" ] && { echo "Canceled"; return 0; }
 
-    # base = current branch (or current commit if detached)
-    base_ref="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || git rev-parse --short HEAD)"
+    current_branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || git rev-parse --short HEAD)"
+
+    base_ref="$(
+      {
+        echo "$current_branch"
+        git branch -a --format='%(refname:short)' | grep -v "^${current_branch}$"
+      } | fzf --prompt="base> " --header="Base branch (default: $current_branch)"
+    )" || base_ref="$current_branch"
 
     wt_root="../wt"
     mkdir -p "$wt_root" 2>/dev/null || true
