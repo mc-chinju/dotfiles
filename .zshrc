@@ -117,14 +117,23 @@ wt() {
     IFS= read -r br
     [ -z "$br" ] && { echo "Canceled"; return 0; }
 
-    current_branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || git rev-parse --short HEAD)"
+    current_branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null)"
+    local is_detached=0
+    [ -z "$current_branch" ] && { current_branch="$(git rev-parse --short HEAD)"; is_detached=1; }
+
+    local fzf_header
+    if [ "$is_detached" -eq 1 ]; then
+      fzf_header="Base branch (detached HEAD: $current_branch)"
+    else
+      fzf_header="Base branch (default: $current_branch)"
+    fi
 
     base_ref="$(
       {
-        echo "$current_branch"
-        git branch -a --format='%(refname:short)' | grep -v "^${current_branch}$"
-      } | fzf --prompt="base> " --header="Base branch (default: $current_branch)"
-    )" || base_ref="$current_branch"
+        [ "$is_detached" -eq 0 ] && echo "$current_branch"
+        git branch -a --format='%(refname:short)' | grep -vF "$current_branch" | grep -v 'HEAD$'
+      } | fzf --prompt="base> " --header="$fzf_header"
+    )" || { echo "Canceled"; return 0; }
 
     wt_root="../wt"
     mkdir -p "$wt_root" 2>/dev/null || true
