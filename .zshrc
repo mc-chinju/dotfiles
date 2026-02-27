@@ -130,8 +130,8 @@ wt() {
 
     base_ref="$(
       {
-        [ "$is_detached" -eq 0 ] && echo "$current_branch"
-        git branch -a --format='%(refname:short)' | grep -vF "$current_branch" | grep -v 'HEAD$'
+        echo "$current_branch"
+        git branch -a --format='%(refname:short)' | grep -vxF "$current_branch" | grep -v 'HEAD$'
       } | fzf --prompt="base> " --header="$fzf_header"
     )" || { echo "Canceled"; return 0; }
 
