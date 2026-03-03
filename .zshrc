@@ -5,18 +5,15 @@ export LSCOLORS=Dxfxcxdxbxegedabagacad
 export PS1="%n %~ \$ "
 
 # Homebrew
-export PATH=/usr/local/bin:$PATH
-export PATH=/usr/local/sbin:$PATH
+export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$PATH"
 
-# python
-export PATH="$HOME/.pyenv/bin:$PATH"
+# python (Homebrew: /opt/homebrew/bin/pyenv)
 eval "$(pyenv init -)"
 
-# rbenv
-export PATH="$HOME/.rbenv/shims:${PATH}"
+# rbenv (Homebrew: /opt/homebrew/bin/rbenv)
 eval "$(rbenv init -)"
 
-# nodenv
+# nodenv (git clone: ~/.nodenv/bin, or Homebrew: /opt/homebrew/bin/nodenv)
 export PATH="$HOME/.nodenv/bin:$PATH"
 eval "$(nodenv init -)"
 
@@ -195,10 +192,10 @@ wtrm() {
   git worktree prune >/dev/null 2>&1 || true
 }
 
-export PATH="/usr/local/opt/openssl@3/bin:$PATH"
-export LDFLAGS="-L/usr/local/opt/openssl@3/lib"
-export CPPFLAGS="-I/usr/local/opt/openssl@3/include"
-export PATH="/usr/local/opt/postgresql@17/bin:$PATH"
+export PATH="/opt/homebrew/opt/openssl@3/bin:$PATH"
+export LDFLAGS="-L/opt/homebrew/opt/openssl@3/lib"
+export CPPFLAGS="-I/opt/homebrew/opt/openssl@3/include"
+export PATH="/opt/homebrew/opt/postgresql@17/bin:$PATH"
 
 # Added by Antigravity
 export PATH="/Users/chinju/.antigravity/antigravity/bin:$PATH"
