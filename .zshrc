@@ -200,3 +200,10 @@ export PATH="/opt/homebrew/opt/postgresql@17/bin:$PATH"
 # Added by Antigravity
 export PATH="/Users/chinju/.antigravity/antigravity/bin:$PATH"
 export PATH="$HOME/.local/bin:$PATH"
+
+# bun completions
+[ -s "/Users/chinju/.bun/_bun" ] && source "/Users/chinju/.bun/_bun"
+
+# bun
+export BUN_INSTALL="$HOME/.bun"
+export PATH="$BUN_INSTALL/bin:$PATH"
