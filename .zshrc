@@ -42,7 +42,6 @@ alias br="git branch -r"
 alias bdall="git branch --merged | grep -v '*' | xargs -I % git branch -d %"
 alias ch="git cherry-pick"
 alias co="git checkout"
-alias sw="git switch"
 alias rt="git restore"
 alias cow="git checkout working"
 alias cod="git checkout develop"
@@ -155,6 +154,54 @@ wt() {
   cd "$orig_dir"
 }
 
+sw() {
+  emulate -L zsh
+
+  # 引数があれば git switch のエイリアスとして扱う（sw -c feature/foo 等）
+  if [ $# -gt 0 ]; then
+    git switch "$@"
+    return
+  fi
+
+  command -v git >/dev/null 2>&1 || { echo "git not found"; return 1; }
+  command -v fzf >/dev/null 2>&1 || { echo "fzf not found"; return 1; }
+  git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "Not a git repo"; return 1; }
+
+  local pick branch
+  pick="$(
+    {
+      printf "(+)\t[+] create new branch\n"
+      git branch --format='%(refname:short)'
+    } | fzf --prompt="sw> " --with-nth=1,2 --delimiter="$(printf '\t')" \
+       --header="Switch branch / Select (+) to create"
+  )" || return
+
+  branch="${pick%%$'\t'*}"
+
+  if [ "$branch" = "(+)" ]; then
+    local br base_ref current_branch fzf_header
+    printf "New branch name (e.g. feat/login-fix): "
+    IFS= read -r br
+    [ -z "$br" ] && { echo "Canceled"; return 0; }
+
+    current_branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null)"
+    [ -z "$current_branch" ] && current_branch="$(git rev-parse --short HEAD)"
+
+    fzf_header="Base branch (default: $current_branch)"
+    base_ref="$(
+      {
+        echo "$current_branch"
+        git branch -a --format='%(refname:short)' | grep -vxF "$current_branch" | grep -v 'HEAD$'
+      } | fzf --prompt="base> " --header="$fzf_header"
+    )" || { echo "Canceled"; return 0; }
+
+    git switch -c "$br" "$base_ref"
+    return 0
+  fi
+
+  git switch "$branch"
+}
+
 wtrm() {
   git rev-parse --is-inside-work-tree >/dev/null 2>&1 || return
 
@@ -192,17 +239,34 @@ wtrm() {
   git worktree prune >/dev/null 2>&1 || true
 }
 
+brm() {
+  emulate -L zsh
+
+  command -v git >/dev/null 2>&1 || { echo "git not found"; return 1; }
+  command -v fzf >/dev/null 2>&1 || { echo "fzf not found"; return 1; }
+  git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "Not a git repo"; return 1; }
+
+  local current_branch branch
+  current_branch="$(git branch --show-current)"
+
+  branch="$(
+    git branch --format='%(refname:short)' \
+    | fzf --prompt="brm> " --header="Delete branch (-D). Current: $current_branch"
+  )" || return
+
+  [ "$branch" = "$current_branch" ] && {
+    echo "Refuse: cannot delete current branch: $branch"
+    return 1
+  }
+
+  echo "Deleting branch: $branch"
+  git branch -D "$branch"
+}
+
 export PATH="/opt/homebrew/opt/openssl@3/bin:$PATH"
 export LDFLAGS="-L/opt/homebrew/opt/openssl@3/lib"
 export CPPFLAGS="-I/opt/homebrew/opt/openssl@3/include"
 export PATH="/opt/homebrew/opt/postgresql@17/bin:$PATH"
-
-# Added by Antigravity
-export PATH="/Users/chinju/.antigravity/antigravity/bin:$PATH"
-export PATH="$HOME/.local/bin:$PATH"
-
-# bun completions
-[ -s "/Users/chinju/.bun/_bun" ] && source "/Users/chinju/.bun/_bun"
 
 # bun
 export BUN_INSTALL="$HOME/.bun"
