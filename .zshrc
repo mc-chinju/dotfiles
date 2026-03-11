@@ -239,6 +239,30 @@ wtrm() {
   git worktree prune >/dev/null 2>&1 || true
 }
 
+brm() {
+  emulate -L zsh
+
+  command -v git >/dev/null 2>&1 || { echo "git not found"; return 1; }
+  command -v fzf >/dev/null 2>&1 || { echo "fzf not found"; return 1; }
+  git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "Not a git repo"; return 1; }
+
+  local current_branch branch
+  current_branch="$(git branch --show-current)"
+
+  branch="$(
+    git branch --format='%(refname:short)' \
+    | fzf --prompt="brm> " --header="Delete branch (-D). Current: $current_branch"
+  )" || return
+
+  [ "$branch" = "$current_branch" ] && {
+    echo "Refuse: cannot delete current branch: $branch"
+    return 1
+  }
+
+  echo "Deleting branch: $branch"
+  git branch -D "$branch"
+}
+
 export PATH="/opt/homebrew/opt/openssl@3/bin:$PATH"
 export LDFLAGS="-L/opt/homebrew/opt/openssl@3/lib"
 export CPPFLAGS="-I/opt/homebrew/opt/openssl@3/include"
