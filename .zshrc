@@ -42,7 +42,6 @@ alias br="git branch -r"
 alias bdall="git branch --merged | grep -v '*' | xargs -I % git branch -d %"
 alias ch="git cherry-pick"
 alias co="git checkout"
-alias sw="git switch"
 alias rt="git restore"
 alias cow="git checkout working"
 alias cod="git checkout develop"
@@ -153,6 +152,54 @@ wt() {
   cd "$wt_dir" || { cd "$orig_dir"; return 1; }
   _wt_open_here
   cd "$orig_dir"
+}
+
+sw() {
+  emulate -L zsh
+
+  # 引数があれば git switch のエイリアスとして扱う（sw -c feature/foo 等）
+  if [ $# -gt 0 ]; then
+    git switch "$@"
+    return
+  fi
+
+  command -v git >/dev/null 2>&1 || { echo "git not found"; return 1; }
+  command -v fzf >/dev/null 2>&1 || { echo "fzf not found"; return 1; }
+  git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "Not a git repo"; return 1; }
+
+  local pick branch
+  pick="$(
+    {
+      printf "(+)\t[+] create new branch\n"
+      git branch --format='%(refname:short)'
+    } | fzf --prompt="sw> " --with-nth=1,2 --delimiter="$(printf '\t')" \
+       --header="Switch branch / Select (+) to create"
+  )" || return
+
+  branch="${pick%%$'\t'*}"
+
+  if [ "$branch" = "(+)" ]; then
+    local br base_ref current_branch fzf_header
+    printf "New branch name (e.g. feat/login-fix): "
+    IFS= read -r br
+    [ -z "$br" ] && { echo "Canceled"; return 0; }
+
+    current_branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null)"
+    [ -z "$current_branch" ] && current_branch="$(git rev-parse --short HEAD)"
+
+    fzf_header="Base branch (default: $current_branch)"
+    base_ref="$(
+      {
+        echo "$current_branch"
+        git branch -a --format='%(refname:short)' | grep -vxF "$current_branch" | grep -v 'HEAD$'
+      } | fzf --prompt="base> " --header="$fzf_header"
+    )" || { echo "Canceled"; return 0; }
+
+    git switch -c "$br" "$base_ref"
+    return 0
+  fi
+
+  git switch "$branch"
 }
 
 wtrm() {
