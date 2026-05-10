@@ -24,6 +24,22 @@ alias ls='ls -G'
 alias rs='be rails s -b 0.0.0.0'
 alias :q='exit'
 
+# Cursor: 普段は PATH の `cursor`。チーム用アカウントは別ユーザーデータで `cursor-team`。
+export CURSOR_TEAM_USER_DATA_DIR="${CURSOR_TEAM_USER_DATA_DIR:-$HOME/Library/Application Support/Cursor-team}"
+
+cursor-team() {
+  local bin
+  bin="$(whence -p cursor 2>/dev/null)"
+  if [ -z "$bin" ]; then
+    bin="/Applications/Cursor.app/Contents/Resources/app/bin/cursor"
+  fi
+  if [ ! -x "$bin" ]; then
+    echo "cursor not found" >&2
+    return 1
+  fi
+  "$bin" --user-data-dir "$CURSOR_TEAM_USER_DATA_DIR" "$@"
+}
+
 # alias:cd
 alias cdd="cd $HOME/Desktop"
 
