@@ -92,6 +92,7 @@ wt() {
     line="$(
       {
         printf "cursor\tCursor (default profile)\n"
+        # cursor-team はこのファイル上方で定義されている関数のみ対象
         if typeset -f cursor-team >/dev/null 2>&1; then
           printf "cursor-team\tCursor (team profile)\n"
         fi
@@ -202,23 +203,30 @@ wt() {
       git worktree add -b "$br" "$new_dir" "$base_ref" || { cd "$orig_dir"; return 1; }
     fi
 
-    opener="$(_wt_pick_opener)" || { echo "Canceled" >&2; return 0; }
+    opener="$(_wt_pick_opener)" || {
+      echo "wt: opener selection canceled" >&2
+      [ -d "$new_dir" ] && echo "wt: worktree path: $new_dir" >&2
+      return 1
+    }
     cd "$new_dir" || { cd "$orig_dir"; return 1; }
     _wt_run_opener "$opener"
     st=$?
     cd "$orig_dir" || true
-    [ $st -ne 0 ] && return st
+    [ $st -ne 0 ] && return "$st"
     return 0
   fi
 
   # Open existing
   [ -z "$wt_dir" ] && return 0
-  opener="$(_wt_pick_opener)" || { echo "Canceled" >&2; return 0; }
+  opener="$(_wt_pick_opener)" || {
+    echo "wt: opener selection canceled" >&2
+    return 1
+  }
   cd "$wt_dir" || { cd "$orig_dir"; return 1; }
   _wt_run_opener "$opener"
   st=$?
   cd "$orig_dir" || true
-  [ $st -ne 0 ] && return st
+  [ $st -ne 0 ] && return "$st"
   return 0
 }
 
