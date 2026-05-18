@@ -92,7 +92,9 @@ wt() {
     line="$(
       {
         printf "cursor\tCursor (default profile)\n"
-        printf "cursor-team\tCursor (team profile)\n"
+        if typeset -f cursor-team >/dev/null 2>&1; then
+          printf "cursor-team\tCursor (team profile)\n"
+        fi
         if command -v code >/dev/null 2>&1; then
           printf "code\tVisual Studio Code\n"
         fi
@@ -187,7 +189,11 @@ wt() {
     [[ $git_common = /* ]] || git_common="${PWD:A}/$git_common"
     repo_root="${git_common:A:h}"
     wt_root="$repo_root/.worktree"
-    mkdir -p "$wt_root" 2>/dev/null || true
+    mkdir -p "$wt_root" || {
+      echo "wt: could not create directory: $wt_root" >&2
+      cd "$orig_dir" || true
+      return 1
+    }
 
     dir_safe="${br//\//__}"
     new_dir="$wt_root/$dir_safe"
