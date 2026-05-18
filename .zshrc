@@ -83,7 +83,7 @@ wt() {
   command -v fzf >/dev/null 2>&1 || { echo "fzf not found"; return 1; }
   git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "Not a git repo"; return 1; }
 
-  local orig_dir pick wt_branch wt_dir
+  local orig_dir pick wt_branch wt_dir opener st
   orig_dir="$PWD"
 
   # fzf で cursor / cursor-team / code を選ぶ（1列目がコマンド種別）
@@ -154,7 +154,7 @@ wt() {
 
   # Create new
   if [ "$wt_branch" = "(+)" ]; then
-    local br base_ref repo_root wt_root dir_safe new_dir current_branch opener
+    local br base_ref repo_root wt_root dir_safe new_dir current_branch
 
     printf "New branch name (e.g. feat/login-fix): "
     IFS= read -r br
@@ -178,8 +178,14 @@ wt() {
       } | fzf --prompt="base> " --header="$fzf_header"
     )" || { echo "Canceled"; return 0; }
 
-    repo_root="$(git rev-parse --path-format=absolute --git-common-dir)"
-    repo_root="${repo_root:h}"
+    local git_common
+    git_common="$(git rev-parse --git-common-dir)" || {
+      echo "wt: could not resolve git common dir" >&2
+      cd "$orig_dir" || true
+      return 1
+    }
+    [[ $git_common = /* ]] || git_common="${PWD:A}/$git_common"
+    repo_root="${git_common:A:h}"
     wt_root="$repo_root/.worktree"
     mkdir -p "$wt_root" 2>/dev/null || true
 
@@ -193,7 +199,9 @@ wt() {
     opener="$(_wt_pick_opener)" || { echo "Canceled" >&2; return 0; }
     cd "$new_dir" || { cd "$orig_dir"; return 1; }
     _wt_run_opener "$opener"
-    cd "$orig_dir"
+    st=$?
+    cd "$orig_dir" || true
+    [ $st -ne 0 ] && return st
     return 0
   fi
 
@@ -202,7 +210,10 @@ wt() {
   opener="$(_wt_pick_opener)" || { echo "Canceled" >&2; return 0; }
   cd "$wt_dir" || { cd "$orig_dir"; return 1; }
   _wt_run_opener "$opener"
-  cd "$orig_dir"
+  st=$?
+  cd "$orig_dir" || true
+  [ $st -ne 0 ] && return st
+  return 0
 }
 
 sw() {
