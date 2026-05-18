@@ -83,16 +83,50 @@ wt() {
   command -v fzf >/dev/null 2>&1 || { echo "fzf not found"; return 1; }
   git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "Not a git repo"; return 1; }
 
-  local orig_dir pick wt_branch wt_dir
+  local orig_dir pick wt_branch wt_dir opener st
   orig_dir="$PWD"
 
-  # open current dir in new window (Cursor preferred; fallback VS Code)
-  _wt_open_here() {
-    if command -v cursor >/dev/null 2>&1; then
-      cursor -n .
-    elif command -v code >/dev/null 2>&1; then
-      code -n .
-    fi
+  # fzf で cursor / cursor-team / code を選ぶ（1列目がコマンド種別）
+  _wt_pick_opener() {
+    local line
+    line="$(
+      {
+        printf "cursor\tCursor (default profile)\n"
+        # cursor-team はこのファイル上方で定義されている関数のみ対象
+        if typeset -f cursor-team >/dev/null 2>&1; then
+          printf "cursor-team\tCursor (team profile)\n"
+        fi
+        if command -v code >/dev/null 2>&1; then
+          printf "code\tVisual Studio Code\n"
+        fi
+      } | fzf --prompt="open> " --with-nth=2 --delimiter="$(printf '\t')" \
+             --header="Choose how to open this worktree"
+    )" || return 1
+    print -r -- "${line%%$'\t'*}"
+  }
+
+  _wt_run_opener() {
+    local kind="$1"
+    case "$kind" in
+      cursor)
+        if command -v cursor >/dev/null 2>&1; then
+          cursor -n .
+        else
+          echo "cursor not in PATH" >&2
+          return 1
+        fi
+        ;;
+      cursor-team)
+        cursor-team -n . || return 1
+        ;;
+      code)
+        command -v code >/dev/null 2>&1 && code -n . || return 1
+        ;;
+      *)
+        echo "wt: unknown opener: $kind" >&2
+        return 1
+        ;;
+    esac
   }
 
   # Build list (TAB-separated): branch<TAB>dir
@@ -123,7 +157,7 @@ wt() {
 
   # Create new
   if [ "$wt_branch" = "(+)" ]; then
-    local br base_ref wt_root dir_safe new_dir current_branch
+    local br base_ref repo_root wt_root dir_safe new_dir current_branch
 
     printf "New branch name (e.g. feat/login-fix): "
     IFS= read -r br
@@ -147,27 +181,58 @@ wt() {
       } | fzf --prompt="base> " --header="$fzf_header"
     )" || { echo "Canceled"; return 0; }
 
-    wt_root="../wt"
-    mkdir -p "$wt_root" 2>/dev/null || true
+    local git_common
+    git_common="$(git rev-parse --git-common-dir)" || {
+      echo "wt: could not resolve git common dir" >&2
+      cd "$orig_dir" || true
+      return 1
+    }
+    [[ $git_common = /* ]] || git_common="${PWD:A}/$git_common"
+    repo_root="${git_common:A:h}"
+    wt_root="$repo_root/.worktree"
+    mkdir -p "$wt_root" || {
+      echo "wt: could not create directory: $wt_root" >&2
+      cd "$orig_dir" || true
+      return 1
+    }
 
     dir_safe="${br//\//__}"
     new_dir="$wt_root/$dir_safe"
 
+    local did_add=0
     if [ ! -d "$new_dir" ]; then
       git worktree add -b "$br" "$new_dir" "$base_ref" || { cd "$orig_dir"; return 1; }
+      did_add=1
     fi
 
+    opener="$(_wt_pick_opener)" || {
+      echo "wt: opener selection canceled" >&2
+      [ -d "$new_dir" ] && echo "wt: worktree path: $new_dir" >&2
+      if [ "$did_add" -eq 1 ]; then
+        git worktree remove "$new_dir" 2>/dev/null || echo "wt: could not remove new worktree automatically: $new_dir" >&2
+      fi
+      return 1
+    }
     cd "$new_dir" || { cd "$orig_dir"; return 1; }
-    _wt_open_here
-    cd "$orig_dir"
+    _wt_run_opener "$opener"
+    st=$?
+    cd "$orig_dir" || true
+    [ $st -ne 0 ] && return "$st"
     return 0
   fi
 
   # Open existing
   [ -z "$wt_dir" ] && return 0
+  opener="$(_wt_pick_opener)" || {
+    echo "wt: opener selection canceled" >&2
+    return 1
+  }
   cd "$wt_dir" || { cd "$orig_dir"; return 1; }
-  _wt_open_here
-  cd "$orig_dir"
+  _wt_run_opener "$opener"
+  st=$?
+  cd "$orig_dir" || true
+  [ $st -ne 0 ] && return "$st"
+  return 0
 }
 
 sw() {
