@@ -199,13 +199,18 @@ wt() {
     dir_safe="${br//\//__}"
     new_dir="$wt_root/$dir_safe"
 
+    local did_add=0
     if [ ! -d "$new_dir" ]; then
       git worktree add -b "$br" "$new_dir" "$base_ref" || { cd "$orig_dir"; return 1; }
+      did_add=1
     fi
 
     opener="$(_wt_pick_opener)" || {
       echo "wt: opener selection canceled" >&2
       [ -d "$new_dir" ] && echo "wt: worktree path: $new_dir" >&2
+      if [ "$did_add" -eq 1 ]; then
+        git worktree remove "$new_dir" 2>/dev/null || echo "wt: could not remove new worktree automatically: $new_dir" >&2
+      fi
       return 1
     }
     cd "$new_dir" || { cd "$orig_dir"; return 1; }
