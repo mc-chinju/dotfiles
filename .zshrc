@@ -86,13 +86,44 @@ wt() {
   local orig_dir pick wt_branch wt_dir
   orig_dir="$PWD"
 
-  # open current dir in new window (Cursor preferred; fallback VS Code)
-  _wt_open_here() {
-    if command -v cursor >/dev/null 2>&1; then
-      cursor -n .
-    elif command -v code >/dev/null 2>&1; then
-      code -n .
-    fi
+  # fzf で cursor / cursor-team / code を選ぶ（1列目がコマンド種別）
+  _wt_pick_opener() {
+    local line
+    line="$(
+      {
+        printf "cursor\tCursor (default profile)\n"
+        printf "cursor-team\tCursor (team profile)\n"
+        if command -v code >/dev/null 2>&1; then
+          printf "code\tVisual Studio Code\n"
+        fi
+      } | fzf --prompt="open> " --with-nth=2 --delimiter="$(printf '\t')" \
+             --header="Choose how to open this worktree"
+    )" || return 1
+    print -r -- "${line%%$'\t'*}"
+  }
+
+  _wt_run_opener() {
+    local kind="$1"
+    case "$kind" in
+      cursor)
+        if command -v cursor >/dev/null 2>&1; then
+          cursor -n .
+        else
+          echo "cursor not in PATH" >&2
+          return 1
+        fi
+        ;;
+      cursor-team)
+        cursor-team -n . || return 1
+        ;;
+      code)
+        command -v code >/dev/null 2>&1 && code -n . || return 1
+        ;;
+      *)
+        echo "wt: unknown opener: $kind" >&2
+        return 1
+        ;;
+    esac
   }
 
   # Build list (TAB-separated): branch<TAB>dir
@@ -123,7 +154,7 @@ wt() {
 
   # Create new
   if [ "$wt_branch" = "(+)" ]; then
-    local br base_ref wt_root dir_safe new_dir current_branch
+    local br base_ref repo_root wt_root dir_safe new_dir current_branch opener
 
     printf "New branch name (e.g. feat/login-fix): "
     IFS= read -r br
@@ -147,7 +178,9 @@ wt() {
       } | fzf --prompt="base> " --header="$fzf_header"
     )" || { echo "Canceled"; return 0; }
 
-    wt_root="../wt"
+    repo_root="$(git rev-parse --path-format=absolute --git-common-dir)"
+    repo_root="${repo_root:h}"
+    wt_root="$repo_root/.worktree"
     mkdir -p "$wt_root" 2>/dev/null || true
 
     dir_safe="${br//\//__}"
@@ -157,16 +190,18 @@ wt() {
       git worktree add -b "$br" "$new_dir" "$base_ref" || { cd "$orig_dir"; return 1; }
     fi
 
+    opener="$(_wt_pick_opener)" || { echo "Canceled" >&2; return 0; }
     cd "$new_dir" || { cd "$orig_dir"; return 1; }
-    _wt_open_here
+    _wt_run_opener "$opener"
     cd "$orig_dir"
     return 0
   fi
 
   # Open existing
   [ -z "$wt_dir" ] && return 0
+  opener="$(_wt_pick_opener)" || { echo "Canceled" >&2; return 0; }
   cd "$wt_dir" || { cd "$orig_dir"; return 1; }
-  _wt_open_here
+  _wt_run_opener "$opener"
   cd "$orig_dir"
 }
 
