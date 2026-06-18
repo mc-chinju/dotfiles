@@ -24,10 +24,20 @@ alias ls='ls -G'
 alias rs='be rails s -b 0.0.0.0'
 alias :q='exit'
 
-# Cursor: 普段は PATH の `cursor`。チーム用アカウントは別ユーザーデータで `cursor-team`。
-export CURSOR_TEAM_USER_DATA_DIR="${CURSOR_TEAM_USER_DATA_DIR:-$HOME/Library/Application Support/Cursor-team}"
+# Cursor: 普段は PATH の `cursor`。別アカウントは `cursor-profile`（fzf でプロファイル選択、以降は cursor と同じ引数）。
+# プロファイル定義はリポジトリ外（既定: ~/.cursor-profiles.zsh、CURSOR_PROFILES_FILE で変更可）
+# `team` は旧 cursor-team 相当（$CURSOR_TEAM_USER_DATA_DIR で上書き可）
+typeset -gA CURSOR_PROFILES
+typeset -g CURSOR_PROFILES_FILE="${CURSOR_PROFILES_FILE:-$HOME/.cursor-profiles.zsh}"
+typeset -g CURSOR_TEAM_USER_DATA_DIR="${CURSOR_TEAM_USER_DATA_DIR:-$HOME/Library/Application Support/Cursor-team}"
+typeset -g CURSOR_PROFILE_BUILTIN_DEFAULT=default
+typeset -g CURSOR_DEFAULT_USER_DATA_DIR="${CURSOR_DEFAULT_USER_DATA_DIR:-$HOME/Library/Application Support/Cursor}"
 
-cursor-team() {
+_cursor_profile_is_builtin() {
+  [[ "$1" = "$CURSOR_PROFILE_BUILTIN_DEFAULT" ]]
+}
+
+_cursor_profile_bin() {
   local bin
   bin="$(whence -p cursor 2>/dev/null)"
   if [ -z "$bin" ]; then
@@ -37,8 +47,240 @@ cursor-team() {
     echo "cursor not found" >&2
     return 1
   fi
-  "$bin" --user-data-dir "$CURSOR_TEAM_USER_DATA_DIR" "$@"
+  print -r -- "$bin"
 }
+
+_cursor_profiles_load() {
+  typeset -gA CURSOR_PROFILES
+  CURSOR_PROFILES=()
+  [[ -r "$CURSOR_PROFILES_FILE" ]] || return 0
+  eval "$(
+    <"$CURSOR_PROFILES_FILE" \
+    | grep -v '^[[:space:]]*#' \
+    | grep -v '^[[:space:]]*$' \
+    | sed 's/typeset -A CURSOR_PROFILES/typeset -gA CURSOR_PROFILES/'
+  )"
+}
+
+_cursor_profiles_save() {
+  local f="$CURSOR_PROFILES_FILE" name
+  {
+    print "# Cursor profile definitions (not tracked in dotfiles)."
+    print "# Managed by cursor-profile add/rm."
+    print "typeset -gA CURSOR_PROFILES"
+    print -n "CURSOR_PROFILES=("
+    for name in ${(ko)CURSOR_PROFILES}; do
+      print -n " $name ${(qq)CURSOR_PROFILES[$name]}"
+    done
+    print ")"
+    print ""
+  } >| "$f" || {
+    echo "cursor-profile: could not write $f" >&2
+    return 1
+  }
+}
+
+_cursor_profile_list() {
+  local name dir
+  printf "%s\t%s\n" "$CURSOR_PROFILE_BUILTIN_DEFAULT" "$CURSOR_DEFAULT_USER_DATA_DIR"
+  if [ ${#CURSOR_PROFILES[@]} -eq 0 ]; then
+    return 0
+  fi
+  for name in ${(ko)CURSOR_PROFILES}; do
+    dir="$(_cursor_profile_dir "$name")"
+    printf "%s\t%s\n" "$name" "$dir"
+  done
+}
+
+_cursor_profile_dir_for_name() {
+  local name="$1"
+  if [ "$name" = team ]; then
+    print -r -- "$CURSOR_TEAM_USER_DATA_DIR"
+  else
+    print -r -- "$HOME/Library/Application Support/Cursor-$name"
+  fi
+}
+
+_cursor_profile_add() {
+  local name="$1" dir="$2"
+
+  if [[ -t 0 ]] && [ -z "$name" ]; then
+    cat <<'EOF' >&2
+Creating a new Cursor profile.
+A profile is identified by a short name and stored in its own user-data-dir
+(login, settings, and extensions are kept separate from other profiles).
+
+EOF
+  fi
+
+  if [ -z "$name" ]; then
+    if [[ ! -t 0 ]]; then
+      echo "cursor-profile: profile name required (e.g. cursor-profile add second)" >&2
+      return 1
+    fi
+    printf "Profile name (e.g. team, work; letters, numbers, _, - only): " >&2
+    IFS= read -r name
+    [ -z "$name" ] && { echo "Canceled" >&2; return 1; }
+  fi
+
+  if [[ ! "$name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    echo "cursor-profile: invalid name (use letters, numbers, _, -)" >&2
+    return 1
+  fi
+
+  if _cursor_profile_is_builtin "$name"; then
+    echo "cursor-profile: reserved profile name: $name" >&2
+    return 1
+  fi
+
+  if [[ -n "${CURSOR_PROFILES[$name]}" ]]; then
+    echo "cursor-profile: profile already exists: $name" >&2
+    return 1
+  fi
+
+  dir="$(_cursor_profile_dir_for_name "$name")"
+
+  CURSOR_PROFILES[$name]="$dir"
+  _cursor_profiles_save || return 1
+  typeset -g _cursor_profile_last_added="$name"
+  echo "Added profile: $name -> $dir" >&2
+}
+
+_cursor_profile_dir() {
+  local profile="$1"
+  if _cursor_profile_is_builtin "$profile"; then
+    print -r -- "$CURSOR_DEFAULT_USER_DATA_DIR"
+    return 0
+  fi
+  local dir="${CURSOR_PROFILES[$profile]}"
+  if [ "$profile" = team ]; then
+    dir="$CURSOR_TEAM_USER_DATA_DIR"
+  fi
+  print -r -- "$dir"
+}
+
+_cursor_profile_rm() {
+  local name="$1"
+
+  if [ ${#CURSOR_PROFILES[@]} -eq 0 ]; then
+    echo "cursor-profile: no profiles to remove" >&2
+    return 1
+  fi
+
+  if [ -z "$name" ]; then
+    name="$(
+      local n d
+      for n in ${(ko)CURSOR_PROFILES}; do
+        d="$(_cursor_profile_dir "$n")"
+        printf "%s\t%s\n" "$n" "$d"
+      done | fzf --prompt="remove> " --with-nth=1,2 --delimiter="$(printf '\t')" \
+             --header="Choose profile to remove"
+    )" || return 1
+    name="${name%%$'\t'*}"
+  fi
+
+  if _cursor_profile_is_builtin "$name"; then
+    echo "cursor-profile: cannot remove built-in profile: $name" >&2
+    return 1
+  fi
+
+  if [[ -z "${CURSOR_PROFILES[$name]}" ]]; then
+    echo "cursor-profile: unknown profile: $name" >&2
+    return 1
+  fi
+
+  unset "CURSOR_PROFILES[$name]"
+  _cursor_profiles_save || return 1
+  echo "Removed profile: $name"
+}
+
+_cursor_profile_launch() {
+  local profile="$1"
+  shift
+
+  local bin
+  bin="$(_cursor_profile_bin)" || return 1
+
+  if _cursor_profile_is_builtin "$profile"; then
+    "$bin" "$@"
+    return
+  fi
+
+  local dir
+  dir="$(_cursor_profile_dir "$profile")"
+  if [ -z "$dir" ]; then
+    echo "cursor-profile: unknown profile: $profile" >&2
+    echo "Available: $CURSOR_PROFILE_BUILTIN_DEFAULT ${(k)CURSOR_PROFILES[*]}" >&2
+    return 1
+  fi
+
+  "$bin" --user-data-dir "$dir" "$@"
+}
+
+_cursor_profile_pick() {
+  local picked
+  picked="$(
+    {
+      printf "(+)\t[+] create new profile\n"
+      printf "%s\t%s (same as \`cursor\`)\n" \
+        "$CURSOR_PROFILE_BUILTIN_DEFAULT" "$CURSOR_DEFAULT_USER_DATA_DIR"
+      local name dir
+      for name in ${(ko)CURSOR_PROFILES}; do
+        dir="$(_cursor_profile_dir "$name")"
+        printf "%s\t%s\n" "$name" "$dir"
+      done
+    } | fzf --prompt="profile> " --with-nth=2 --delimiter="$(printf '\t')" \
+           --header="Choose Cursor profile / Select (+) to create"
+  )" || return 1
+
+  picked="${picked%%$'\t'*}"
+
+  if [ "$picked" = "(+)" ]; then
+    _cursor_profile_add || return 1
+    picked="$_cursor_profile_last_added"
+    [ -z "$picked" ] && return 1
+  fi
+  typeset -g _cursor_profile_picked="$picked"
+}
+
+cursor-profile() {
+  emulate -L zsh
+
+  local cmd="$1" profile
+  case "$cmd" in
+    add)
+      shift
+      _cursor_profile_add "$@"
+      ;;
+    rm|remove|del)
+      shift
+      _cursor_profile_rm "$@"
+      ;;
+    list|ls)
+      _cursor_profile_list
+      ;;
+    help|-h|--help)
+      cat <<'EOF'
+Usage:
+  cursor-profile [args...]          Choose profile with fzf, then launch Cursor
+  cursor-profile .                  Choose profile with fzf, open current directory
+  cursor-profile -n .               Choose profile with fzf, open in new window
+  cursor-profile add [name]
+  cursor-profile rm [name]
+  cursor-profile list
+
+Profiles are stored in ~/.cursor-profiles.zsh (or $CURSOR_PROFILES_FILE).
+EOF
+      ;;
+    *)
+      _cursor_profile_pick || return 1
+      profile="$_cursor_profile_picked"
+      _cursor_profile_launch "$profile" "$@"
+      ;;
+  esac
+}
+
+_cursor_profiles_load
 
 # alias:cd
 alias cdd="cd $HOME/Desktop"
@@ -86,15 +328,14 @@ wt() {
   local orig_dir pick wt_branch wt_dir opener st
   orig_dir="$PWD"
 
-  # fzf で cursor / cursor-team / code を選ぶ（1列目がコマンド種別）
+  # fzf で cursor / cursor-profile / code を選ぶ（1列目がコマンド種別）
   _wt_pick_opener() {
     local line
     line="$(
       {
-        printf "cursor\tCursor (default profile)\n"
-        # cursor-team はこのファイル上方で定義されている関数のみ対象
-        if typeset -f cursor-team >/dev/null 2>&1; then
-          printf "cursor-team\tCursor (team profile)\n"
+        printf "cursor\tCursor (default)\n"
+        if typeset -f cursor-profile >/dev/null 2>&1; then
+          printf "cursor-profile\tCursor (profile)\n"
         fi
         if command -v code >/dev/null 2>&1; then
           printf "code\tVisual Studio Code\n"
@@ -116,8 +357,8 @@ wt() {
           return 1
         fi
         ;;
-      cursor-team)
-        cursor-team -n . || return 1
+      cursor-profile)
+        cursor-profile -n . || return 1
         ;;
       code)
         command -v code >/dev/null 2>&1 && code -n . || return 1
