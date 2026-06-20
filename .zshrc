@@ -121,7 +121,7 @@ EOF
     fi
     printf "Profile name (e.g. team, work; letters, numbers, _, - only): " >&2
     IFS= read -r name
-    [ -z "$name" ] && { echo "Canceled" >&2; return 1; }
+    [ -z "$name" ] && { echo "Canceled" >&2; return 130; }
   fi
 
   if [[ ! "$name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
