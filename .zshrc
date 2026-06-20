@@ -176,7 +176,11 @@ _cursor_profile_rm() {
         printf "%s\t%s\n" "$n" "$d"
       done | fzf --prompt="remove> " --with-nth=1,2 --delimiter="$(printf '\t')" \
              --header="Choose profile to remove"
-    )" || return 1
+    )" || {
+      local ret=$?
+      [[ $ret == 1 || $ret == 130 ]] && return 130
+      return $ret
+    }
     name="${name%%$'\t'*}"
   fi
 
@@ -232,7 +236,11 @@ _cursor_profile_pick() {
       done
     } | fzf --prompt="profile> " --with-nth=2 --delimiter="$(printf '\t')" \
            --header="Choose Cursor profile / Select (+) to create"
-  )" || return $?
+  )" || {
+    local ret=$?
+    [[ $ret == 1 || $ret == 130 ]] && return 130
+    return $ret
+  }
 
   picked="${picked%%$'\t'*}"
 
