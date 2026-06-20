@@ -23,6 +23,7 @@ alias bi='bundle install'
 alias ls='ls -G'
 alias rs='be rails s -b 0.0.0.0'
 alias :q='exit'
+alias c='clear'
 
 # Cursor: 普段は PATH の `cursor`。別アカウントは `cursor-profile`（fzf でプロファイル選択、以降は cursor と同じ引数）。
 # プロファイル定義はリポジトリ外（既定: ~/.cursor-profiles.zsh、CURSOR_PROFILES_FILE で変更可）
@@ -231,12 +232,12 @@ _cursor_profile_pick() {
       done
     } | fzf --prompt="profile> " --with-nth=2 --delimiter="$(printf '\t')" \
            --header="Choose Cursor profile / Select (+) to create"
-  )" || return 1
+  )" || return $?
 
   picked="${picked%%$'\t'*}"
 
   if [ "$picked" = "(+)" ]; then
-    _cursor_profile_add || return 1
+    _cursor_profile_add || return $?
     picked="$_cursor_profile_last_added"
     [ -z "$picked" ] && return 1
   fi
@@ -273,7 +274,7 @@ Profiles are stored in ~/.cursor-profiles.zsh (or $CURSOR_PROFILES_FILE).
 EOF
       ;;
     *)
-      _cursor_profile_pick || return 1
+      _cursor_profile_pick || return $?
       profile="$_cursor_profile_picked"
       _cursor_profile_launch "$profile" "$@"
       ;;
@@ -315,7 +316,6 @@ alias fpush='git push -f origin HEAD'
 alias pull="git pull origin HEAD"
 alias show="git show"
 alias st="git stash"
-alias c="clear"
 
 wt() {
   emulate -L zsh
@@ -329,7 +329,13 @@ wt() {
   local orig_dir pick wt_branch wt_dir st
   orig_dir="$PWD"
 
-  typeset -f cursor-profile >/dev/null 2>&1 || { echo "cursor-profile not found"; return 1; }
+  _wt_open_cursor() {
+    typeset -f cursor-profile >/dev/null 2>&1 || {
+      echo "wt: cursor-profile not found" >&2
+      return 1
+    }
+    cursor-profile -n .
+  }
 
   # Build list (TAB-separated): branch<TAB>dir
   pick="$(
@@ -408,12 +414,17 @@ wt() {
     fi
 
     cd "$new_dir" || { cd "$orig_dir"; return 1; }
-    cursor-profile -n . || {
+    _wt_open_cursor || {
       st=$?
       cd "$orig_dir" || true
-      [ -d "$new_dir" ] && echo "wt: worktree path: $new_dir" >&2
-      if [ "$did_add" -eq 1 ]; then
-        git worktree remove "$new_dir" 2>/dev/null || echo "wt: could not remove new worktree automatically: $new_dir" >&2
+      if [ "$st" -eq 130 ]; then
+        echo "wt: profile selection canceled" >&2
+        if [ "$did_add" -eq 1 ]; then
+          [ -d "$new_dir" ] && echo "wt: worktree path: $new_dir" >&2
+          git worktree remove "$new_dir" 2>/dev/null || echo "wt: could not remove new worktree automatically: $new_dir" >&2
+        fi
+      elif [ -d "$new_dir" ]; then
+        echo "wt: worktree path: $new_dir" >&2
       fi
       return "$st"
     }
@@ -424,9 +435,10 @@ wt() {
   # Open existing
   [ -z "$wt_dir" ] && return 0
   cd "$wt_dir" || { cd "$orig_dir"; return 1; }
-  cursor-profile -n . || {
+  _wt_open_cursor || {
     st=$?
     cd "$orig_dir" || true
+    [ "$st" -eq 130 ] && echo "wt: profile selection canceled" >&2
     return "$st"
   }
   cd "$orig_dir" || true
