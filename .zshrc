@@ -315,6 +315,7 @@ alias fpush='git push -f origin HEAD'
 alias pull="git pull origin HEAD"
 alias show="git show"
 alias st="git stash"
+alias c="clear"
 
 wt() {
   emulate -L zsh
