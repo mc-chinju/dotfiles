@@ -325,50 +325,10 @@ wt() {
   command -v fzf >/dev/null 2>&1 || { echo "fzf not found"; return 1; }
   git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "Not a git repo"; return 1; }
 
-  local orig_dir pick wt_branch wt_dir opener st
+  local orig_dir pick wt_branch wt_dir st
   orig_dir="$PWD"
 
-  # fzf で cursor / cursor-profile / code を選ぶ（1列目がコマンド種別）
-  _wt_pick_opener() {
-    local line
-    line="$(
-      {
-        printf "cursor\tCursor (default)\n"
-        if typeset -f cursor-profile >/dev/null 2>&1; then
-          printf "cursor-profile\tCursor (profile)\n"
-        fi
-        if command -v code >/dev/null 2>&1; then
-          printf "code\tVisual Studio Code\n"
-        fi
-      } | fzf --prompt="open> " --with-nth=2 --delimiter="$(printf '\t')" \
-             --header="Choose how to open this worktree"
-    )" || return 1
-    print -r -- "${line%%$'\t'*}"
-  }
-
-  _wt_run_opener() {
-    local kind="$1"
-    case "$kind" in
-      cursor)
-        if command -v cursor >/dev/null 2>&1; then
-          cursor -n .
-        else
-          echo "cursor not in PATH" >&2
-          return 1
-        fi
-        ;;
-      cursor-profile)
-        cursor-profile -n . || return 1
-        ;;
-      code)
-        command -v code >/dev/null 2>&1 && code -n . || return 1
-        ;;
-      *)
-        echo "wt: unknown opener: $kind" >&2
-        return 1
-        ;;
-    esac
-  }
+  typeset -f cursor-profile >/dev/null 2>&1 || { echo "cursor-profile not found"; return 1; }
 
   # Build list (TAB-separated): branch<TAB>dir
   pick="$(
@@ -446,33 +406,29 @@ wt() {
       did_add=1
     fi
 
-    opener="$(_wt_pick_opener)" || {
-      echo "wt: opener selection canceled" >&2
+    cd "$new_dir" || { cd "$orig_dir"; return 1; }
+    cursor-profile -n . || {
+      st=$?
+      cd "$orig_dir" || true
       [ -d "$new_dir" ] && echo "wt: worktree path: $new_dir" >&2
       if [ "$did_add" -eq 1 ]; then
         git worktree remove "$new_dir" 2>/dev/null || echo "wt: could not remove new worktree automatically: $new_dir" >&2
       fi
-      return 1
+      return "$st"
     }
-    cd "$new_dir" || { cd "$orig_dir"; return 1; }
-    _wt_run_opener "$opener"
-    st=$?
     cd "$orig_dir" || true
-    [ $st -ne 0 ] && return "$st"
     return 0
   fi
 
   # Open existing
   [ -z "$wt_dir" ] && return 0
-  opener="$(_wt_pick_opener)" || {
-    echo "wt: opener selection canceled" >&2
-    return 1
-  }
   cd "$wt_dir" || { cd "$orig_dir"; return 1; }
-  _wt_run_opener "$opener"
-  st=$?
+  cursor-profile -n . || {
+    st=$?
+    cd "$orig_dir" || true
+    return "$st"
+  }
   cd "$orig_dir" || true
-  [ $st -ne 0 ] && return "$st"
   return 0
 }
 
